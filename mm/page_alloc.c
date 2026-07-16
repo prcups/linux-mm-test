@@ -50,6 +50,8 @@
 #include <linux/ftrace.h>
 #include <linux/lockdep.h>
 #include <linux/psi.h>
+#include <linux/sched/clock.h>
+#include <linux/sched/rt.h>
 #include <linux/khugepaged.h>
 #include <linux/delayacct.h>
 #include <linux/cacheinfo.h>
@@ -5218,6 +5220,21 @@ struct page *__alloc_frozen_pages_noprof(gfp_t gfp, unsigned int order,
 	unsigned int alloc_flags = ALLOC_WMARK_LOW;
 	gfp_t alloc_gfp; /* The gfp_t that was actually used for allocation */
 	struct alloc_context ac = { };
+	unsigned long trace_free_pages = 0;
+	unsigned long trace_total_pages = 0;
+	bool trace_alloc_latency = false;
+	u64 alloc_start_ns = 0;
+
+	/*
+	 * Track allocation latency for RT/DL tasks to help diagnose
+	 * unexpected delays in the buddy allocator.
+	 */
+	if (rt_or_dl_task(current)) {
+		trace_alloc_latency = true;
+		trace_free_pages = global_zone_page_state(NR_FREE_PAGES);
+		trace_total_pages = totalram_pages();
+		alloc_start_ns = local_clock();
+	}
 
 	/*
 	 * There are several places where we assume that the order value is sane
@@ -5270,6 +5287,12 @@ out:
 	}
 
 	trace_mm_page_alloc(page, order, alloc_gfp, ac.migratetype);
+	if (trace_alloc_latency)
+		trace_mm_page_alloc_highprio_latency(order, alloc_gfp,
+				ac.migratetype, local_clock() - alloc_start_ns,
+				trace_free_pages, trace_total_pages,
+				current->tgid, current->pid, current->comm,
+				current->prio, current->policy);
 	kmsan_alloc_page(page, order, alloc_gfp);
 
 	return page;

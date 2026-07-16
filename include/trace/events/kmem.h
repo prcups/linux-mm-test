@@ -5,6 +5,7 @@
 #if !defined(_TRACE_KMEM_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_KMEM_H
 
+#include <linux/sched.h>
 #include <linux/types.h>
 #include <linux/tracepoint.h>
 #include <trace/events/mmflags.h>
@@ -203,6 +204,86 @@ TRACE_EVENT(mm_page_alloc,
 		__entry->pfn != -1UL ? __entry->pfn : 0,
 		__entry->order,
 		__entry->migratetype,
+		show_gfp_flags(__entry->gfp_flags))
+);
+
+TRACE_EVENT(mm_page_alloc_highprio_latency,
+
+	TP_PROTO(unsigned int order,
+		 gfp_t gfp_flags,
+		 int migratetype,
+		 u64 latency_ns,
+		 unsigned long free_pages,
+		 unsigned long total_pages,
+		 pid_t tgid,
+		 pid_t pid,
+		 const char *comm,
+		 int prio,
+		 unsigned int policy),
+
+	TP_ARGS(order, gfp_flags, migratetype, latency_ns, free_pages,
+		total_pages, tgid, pid, comm, prio, policy),
+
+	TP_STRUCT__entry(
+		__field(	unsigned int,	order		)
+		__field(	unsigned long,	gfp_flags	)
+		__field(	int,		migratetype	)
+		__field(	u64,		latency_ns	)
+		__field(	unsigned long,	free_pages	)
+		__field(	unsigned long,	total_pages	)
+		__field(	pid_t,		tgid		)
+		__field(	pid_t,		pid		)
+		__array(	char,		comm, TASK_COMM_LEN )
+		__field(	int,		prio		)
+		__field(	unsigned int,	policy		)
+	),
+
+	TP_fast_assign(
+		__entry->order		= order;
+		__entry->gfp_flags	= (__force unsigned long)gfp_flags;
+		__entry->migratetype	= migratetype;
+		__entry->latency_ns	= latency_ns;
+		__entry->free_pages	= free_pages;
+		__entry->total_pages	= total_pages;
+		__entry->tgid		= tgid;
+		__entry->pid		= pid;
+		memcpy(__entry->comm, comm, TASK_COMM_LEN);
+		__entry->prio		= prio;
+		__entry->policy		= policy;
+	),
+
+	TP_printk("tgid=%d pid=%d comm=%s prio=%d policy=%u order=%u migratetype=%d latency_ns=%llu free_pages=%lu total_pages=%lu gfp_flags=%s",
+		__entry->tgid,
+		__entry->pid,
+		__entry->comm,
+		__entry->prio,
+		__entry->policy,
+		__entry->order,
+		__entry->migratetype,
+		__entry->latency_ns,
+		__entry->free_pages,
+		__entry->total_pages,
+		show_gfp_flags(__entry->gfp_flags))
+);
+
+TRACE_EVENT(mm_page_alloc_non_rt_delay,
+
+	TP_PROTO(gfp_t gfp_flags, unsigned int delay_ms),
+
+	TP_ARGS(gfp_flags, delay_ms),
+
+	TP_STRUCT__entry(
+		__field(	unsigned long,	gfp_flags	)
+		__field(	unsigned int,	delay_ms	)
+	),
+
+	TP_fast_assign(
+		__entry->gfp_flags	= (__force unsigned long)gfp_flags;
+		__entry->delay_ms	= delay_ms;
+	),
+
+	TP_printk("delay_ms=%u gfp_flags=%s",
+		__entry->delay_ms,
 		show_gfp_flags(__entry->gfp_flags))
 );
 
