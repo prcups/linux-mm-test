@@ -2,7 +2,7 @@
 VERSION = 7
 PATCHLEVEL = 0
 SUBLEVEL = 0
-EXTRAVERSION = -with-delay-preparation
+EXTRAVERSION = -add-rt-relay
 NAME = Baby Opossum Posse
 
 # *DOCUMENTATION*

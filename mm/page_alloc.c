@@ -93,7 +93,7 @@ typedef int __bitwise fpi_t;
 /* Free the page without taking locks. Rely on trylock only. */
 #define FPI_TRYLOCK		((__force fpi_t)BIT(2))
 
-#define NON_RT_ALLOC_DELAY_FREE_MEM_PCT	0
+#define NON_RT_ALLOC_DELAY_FREE_MEM_PCT	60
 #define NON_RT_ALLOC_DELAY_MS		1
 
 static bool should_throttle_non_rt_alloc(gfp_t gfp)
