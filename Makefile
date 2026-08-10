@@ -2,7 +2,7 @@
 VERSION = 7
 PATCHLEVEL = 0
 SUBLEVEL = 0
-EXTRAVERSION =
+EXTRAVERSION = -with-delay-preparation
 NAME = Baby Opossum Posse
 
 # *DOCUMENTATION*

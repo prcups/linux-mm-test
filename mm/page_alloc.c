@@ -15,6 +15,7 @@
  */
 
 #include <linux/stddef.h>
+#include <linux/delay.h>
 #include <linux/mm.h>
 #include <linux/highmem.h>
 #include <linux/interrupt.h>
@@ -91,6 +92,45 @@ typedef int __bitwise fpi_t;
 
 /* Free the page without taking locks. Rely on trylock only. */
 #define FPI_TRYLOCK		((__force fpi_t)BIT(2))
+
+#define NON_RT_ALLOC_DELAY_FREE_MEM_PCT	0
+#define NON_RT_ALLOC_DELAY_MS		1
+
+static bool should_throttle_non_rt_alloc(gfp_t gfp)
+{
+	unsigned long total_pages;
+	unsigned long free_pages;
+	unsigned long free_threshold_pages;
+
+	if (!gfpflags_allow_blocking(gfp) || !in_task())
+		return false;
+
+	if (!current->mm || rt_or_dl_task(current))
+		return false;
+
+	if ((current->flags & PF_MEMALLOC) || tsk_is_oom_victim(current))
+		return false;
+
+	total_pages = totalram_pages();
+	if (!total_pages)
+		return false;
+
+	free_pages = global_zone_page_state(NR_FREE_PAGES);
+	free_threshold_pages = mult_frac(total_pages,
+					 NON_RT_ALLOC_DELAY_FREE_MEM_PCT,
+					 100);
+
+	return free_pages <= free_threshold_pages;
+}
+
+static void throttle_non_rt_alloc(gfp_t gfp)
+{
+	if (!should_throttle_non_rt_alloc(gfp))
+		return;
+
+	trace_mm_page_alloc_non_rt_delay(gfp, NON_RT_ALLOC_DELAY_MS);
+	msleep(NON_RT_ALLOC_DELAY_MS);
+}
 
 /* prevent >1 _updater_ of zone percpu pageset ->high and ->batch fields */
 static DEFINE_MUTEX(pcp_batch_high_lock);
@@ -5116,6 +5156,7 @@ unsigned long alloc_pages_bulk_noprof(gfp_t gfp, int preferred_nid,
 
 	/* May set ALLOC_NOFRAGMENT, fragmentation will return 1 page. */
 	gfp &= gfp_allowed_mask;
+	throttle_non_rt_alloc(gfp);
 	alloc_gfp = gfp;
 	if (!prepare_alloc_pages(gfp, 0, preferred_nid, nodemask, &ac, &alloc_gfp, &alloc_flags))
 		goto out;
@@ -5252,6 +5293,7 @@ struct page *__alloc_frozen_pages_noprof(gfp_t gfp, unsigned int order,
 	 * movable zones are not used during allocation.
 	 */
 	gfp = current_gfp_context(gfp);
+	throttle_non_rt_alloc(gfp);
 	alloc_gfp = gfp;
 	if (!prepare_alloc_pages(gfp, order, preferred_nid, nodemask, &ac,
 			&alloc_gfp, &alloc_flags))
